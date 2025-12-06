@@ -393,6 +393,7 @@ async function loadList(listId) {
       listId,
       currentUser.uid
     );
+    console.log("Items returned for list", listId, currentListItems);
     const list = currentLists.find((l) => l.id === listId) || null;
     renderActiveListHeader(list, currentListItems);
     renderListItems(currentListItems);
