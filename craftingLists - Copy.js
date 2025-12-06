@@ -28,17 +28,28 @@ export async function getUserLists(uid) {
   return lists;
 }
 
+export async function getListById(listId) {
+  const ref = doc(db, "craftingLists", listId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return null;
+  return { id: snap.id, ...snap.data() };
+}
+
 export async function getListItems(listId, uid) {
   const colRef = collection(db, "craftingLists", listId, "items");
 
-  // SUPER SIMPLE: get all items in this list, ignore ownerId & createdAt for now
-  const snap = await getDocs(colRef);
+  // This query is fine: ownerId + createdAt
+  const q = query(
+    colRef,
+    where("ownerId", "==", uid),
+    orderBy("createdAt", "asc")
+  );
+
+  const snap = await getDocs(q);
   const items = [];
   snap.forEach((docSnap) => {
     items.push({ id: docSnap.id, ...docSnap.data() });
   });
-
-  console.log("DEBUG: Raw items for list", listId, items);
   return items;
 }
 
