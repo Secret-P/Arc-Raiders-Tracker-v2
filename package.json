@@ -1,0 +1,13 @@
+{
+  "name": "arc-raiders-tracker",
+  "version": "1.0.0",
+  "description": "Arc Raiders Tracker frontend with MetaForge sync",
+  "main": "index.js",
+  "scripts": {
+    "sync:metaforge": "node scripts/syncMetaforge.js"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "firebase-admin": "^12.6.0"
+  }
+}
