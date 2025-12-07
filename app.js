@@ -1,7 +1,7 @@
 // app.js
 // Main app wiring: auth, lists, simple rendering.
 
-import { signInWithGoogle, signOutUser, watchAuthState } from "./auth.js";
+import { signInWithGoogle, signOutUser, watchAuthState } from "./Auth.js";
 import { getMetaStatus } from "./metastatus.js";
 import {
   getUserLists,

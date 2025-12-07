@@ -1,4 +1,4 @@
-// auth.js
+// Auth.js
 // Simple Google sign-in helpers.
 
 import { auth, googleProvider } from "./firebase.js";
