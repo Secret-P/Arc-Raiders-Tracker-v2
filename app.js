@@ -2,7 +2,7 @@
 // Main app wiring: auth, lists, simple rendering.
 
 import { signInWithGoogle, signOutUser, watchAuthState } from "./auth.js";
-import { getMetaStatus } from "./metaStatus.js";
+import { getMetaStatus } from "./metastatus.js";
 import {
   getUserLists,
   getListItemsWithCanonical,
