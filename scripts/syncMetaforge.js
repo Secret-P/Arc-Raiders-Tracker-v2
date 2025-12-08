@@ -11,6 +11,7 @@
 const admin = require('firebase-admin');
 
 const META_BASE_URL = process.env.META_BASE_URL || 'https://metaforge.app/api/arc-raiders';
+const GAME_MAP_URL = 'https://metaforge.app/api/game-map-data';
 const FIRESTORE_BATCH_LIMIT = 500;
 
 /**
@@ -34,8 +35,20 @@ function initFirebase() {
  * We rely on the Node 18+ global fetch implementation to avoid extra
  * dependencies.
  */
+function resolveMetaForgeUrl(endpoint) {
+  if (!endpoint) throw new Error('MetaForge endpoint is required');
+
+  if (endpoint.startsWith('http://') || endpoint.startsWith('https://')) {
+    return endpoint;
+  }
+
+  if (endpoint.startsWith('/')) return `${META_BASE_URL}${endpoint}`;
+
+  return `${META_BASE_URL}/${endpoint}`;
+}
+
 async function fetchFromMetaForge(endpoint) {
-  const url = `${META_BASE_URL}${endpoint}`;
+  const url = resolveMetaForgeUrl(endpoint);
   const response = await fetch(url);
 
   if (!response.ok) {
@@ -92,13 +105,35 @@ function buildEndpointWithPage(endpoint, page) {
 async function fetchAllPages(endpoint, key, mapFn) {
   const allRecords = [];
   let page = 1;
+  let loggedPagination = false;
 
   while (true) {
     const payload = await fetchFromMetaForge(buildEndpointWithPage(endpoint, page));
+    const pagination = extractPagination(payload);
+    if (pagination && !loggedPagination) {
+      const totalItems =
+        pagination.total ||
+        pagination.totalItems ||
+        pagination.totalCount ||
+        pagination.count ||
+        pagination.total_records ||
+        null;
+      const totalPages =
+        pagination.totalPages ||
+        pagination.pageCount ||
+        pagination.total_pages ||
+        pagination.pages ||
+        null;
+      console.log(
+        `Pagination info for ${endpoint}: total=${totalItems ?? 'unknown'}, pages=${
+          totalPages ?? 'unknown'
+        }`
+      );
+      loggedPagination = true;
+    }
+
     const pageRecords = normalizeList(payload, key).map(mapFn);
     allRecords.push(...pageRecords);
-
-    const pagination = extractPagination(payload);
     const nextPage = getNextPage(page, pagination);
 
     if (!nextPage || nextPage === page) break;
@@ -186,11 +221,127 @@ function mapQuest(rawQuest) {
   };
 }
 
+function mapArc(rawArc) {
+  const arcId = rawArc.id || rawArc.arcId || rawArc.slug || rawArc.name;
+  if (!arcId) {
+    throw new Error('Missing arc identifier in MetaForge payload');
+  }
+
+  const dropsRaw = rawArc.drops || rawArc.loot || rawArc.rewards || rawArc.dropsFrom || [];
+
+  const drops = dropsRaw
+    .map((drop) => {
+      const itemId = drop?.itemId || drop?.id || drop?.slug || drop?.item?.id || drop?.item?.slug;
+      if (!itemId) return null;
+      const noteParts = [drop?.notes, drop?.type, drop?.rarity, drop?.chance && `Chance: ${drop.chance}`].filter(
+        Boolean
+      );
+      return {
+        itemId: String(itemId),
+        notes: noteParts.length ? noteParts.join(' | ') : null,
+      };
+    })
+    .filter(Boolean);
+
+  return {
+    id: String(arcId),
+    data: {
+      name: rawArc.name || rawArc.title || 'Unknown Arc',
+      type: rawArc.type || rawArc.arcType || rawArc.category || null,
+      description: rawArc.description || rawArc.summary || null,
+      maps: toStringArray(rawArc.maps || rawArc.locations || rawArc.mapSlugs || rawArc.mapNames),
+      biomes: toStringArray(rawArc.biomes || rawArc.biome),
+      drops,
+      metaforgeId: rawArc.id ?? rawArc.arcId ?? null,
+    },
+  };
+}
+
+function mapTrader(rawTrader) {
+  const traderId = rawTrader.id || rawTrader.traderId || rawTrader.slug || rawTrader.name;
+  if (!traderId) {
+    throw new Error('Missing trader identifier in MetaForge payload');
+  }
+
+  const inventoryRaw = rawTrader.inventory || rawTrader.items || rawTrader.wares || [];
+
+  const inventory = inventoryRaw
+    .map((entry) => {
+      const itemId = entry?.itemId || entry?.id || entry?.slug || entry?.item?.id || entry?.item?.slug;
+      if (!itemId) return null;
+      return {
+        itemId: String(itemId),
+        price: entry.price != null ? Number(entry.price) : null,
+        currency: entry.currency || entry.priceCurrency || entry.costCurrency || null,
+        notes: entry.notes || entry.type || entry.rarity || null,
+      };
+    })
+    .filter(Boolean);
+
+  const location = rawTrader.location || rawTrader.map || rawTrader.locationMap || rawTrader.region;
+  const locationMap =
+    (typeof location === 'string' && location) ||
+    location?.name ||
+    location?.map ||
+    location?.slug ||
+    null;
+
+  return {
+    id: String(traderId),
+    data: {
+      name: rawTrader.name || rawTrader.title || 'Unknown Trader',
+      description: rawTrader.description || rawTrader.bio || null,
+      locationMap,
+      inventory,
+      metaforgeId: rawTrader.id ?? rawTrader.traderId ?? null,
+    },
+  };
+}
+
+function mapMap(rawMap) {
+  const mapId = rawMap.id || rawMap.slug || rawMap.mapId || rawMap.name;
+  if (!mapId) {
+    throw new Error('Missing map identifier in MetaForge payload');
+  }
+
+  const arcs = toStringArray(rawMap.arcs || rawMap.activities || rawMap.events || rawMap.arcIds);
+  const biomes = toStringArray(rawMap.biomes || rawMap.biome || rawMap.regions);
+
+  const extra = {};
+  if (rawMap.pointsOfInterest) extra.pointsOfInterest = rawMap.pointsOfInterest;
+  if (rawMap.zones) extra.zones = rawMap.zones;
+  if (rawMap.coordinates) extra.coordinates = rawMap.coordinates;
+
+  return {
+    id: String(mapId),
+    data: {
+      name: rawMap.name || rawMap.title || 'Unknown Map',
+      slug: rawMap.slug || String(mapId),
+      description: rawMap.description || rawMap.summary || null,
+      biomes,
+      arcs,
+      ...extra,
+      metaforgeId: rawMap.id ?? rawMap.mapId ?? null,
+    },
+  };
+}
+
 function normalizeList(payload, key) {
   if (Array.isArray(payload)) return payload;
   if (!payload || typeof payload !== 'object') return [];
 
-  const candidateKeys = [key, 'data', 'results', 'content', 'items', 'quests', 'recipes'];
+  const candidateKeys = [
+    key,
+    'data',
+    'results',
+    'content',
+    'items',
+    'quests',
+    'recipes',
+    'arcs',
+    'traders',
+    'maps',
+  ];
 
   for (const candidate of candidateKeys) {
     if (Array.isArray(payload[candidate])) return payload[candidate];
@@ -245,6 +396,18 @@ async function syncMetaForge() {
   const quests = await fetchAllPages('/quests', 'quests', mapQuest);
   console.log(`Fetched ${quests.length} quests from MetaForge`);
 
+  console.log('Fetching arcs from MetaForge...');
+  const arcs = await fetchAllPages('/arcs', 'arcs', mapArc);
+  console.log(`Fetched ${arcs.length} arcs from MetaForge`);
+
+  console.log('Fetching traders from MetaForge...');
+  const traders = await fetchAllPages('/traders', 'traders', mapTrader);
+  console.log(`Fetched ${traders.length} traders from MetaForge`);
+
+  console.log(`Fetching maps from ${GAME_MAP_URL}...`);
+  const maps = await fetchAllPages(GAME_MAP_URL, 'maps', mapMap);
+  console.log(`Fetched ${maps.length} maps from MetaForge`);
+
   console.log('Upserting items into Firestore (mfItems)...');
   const itemsWritten = await upsertBatch(db, 'mfItems', items);
   console.log(`Upserted ${itemsWritten} items into mfItems`);
@@ -252,6 +415,18 @@ async function syncMetaForge() {
   console.log('Upserting quests into Firestore (mfQuests)...');
   const questsWritten = await upsertBatch(db, 'mfQuests', quests);
   console.log(`Upserted ${questsWritten} quests into mfQuests`);
+
+  console.log('Upserting arcs into Firestore (mfArcs)...');
+  const arcsWritten = await upsertBatch(db, 'mfArcs', arcs);
+  console.log(`Upserted ${arcsWritten} arcs into mfArcs`);
+
+  console.log('Upserting traders into Firestore (mfTraders)...');
+  const tradersWritten = await upsertBatch(db, 'mfTraders', traders);
+  console.log(`Upserted ${tradersWritten} traders into mfTraders`);
+
+  console.log('Upserting maps into Firestore (mfMaps)...');
+  const mapsWritten = await upsertBatch(db, 'mfMaps', maps);
+  console.log(`Upserted ${mapsWritten} maps into mfMaps`);
 
   console.log('MetaForge sync completed successfully.');
 }
