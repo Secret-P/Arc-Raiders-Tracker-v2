@@ -63,57 +63,32 @@
           </div>
 
           <div id="active-list-actions">
-            <button id="add-item-button" type="button">+ ADD ITEM</button>
-            <button id="add-from-quest-button" type="button">
-              + ADD FROM QUEST
-            </button>
-            <button id="archive-list-button" type="button">ARCHIVE LIST</button>
+            <button id="rename-list-button" type="button">RENAME</button>
+            <button id="delete-list-button" type="button">DELETE LIST</button>
+            <button id="add-item-button" type="button">+ ADD FROM METAFORGE</button>
           </div>
         </header>
-
-        <!-- Inline add/search areas -->
-        <section id="inline-add-area">
-          <div id="add-item-inline" hidden>
-            <label for="add-item-search-input">&gt; SEARCH ITEM:</label>
-            <input
-              id="add-item-search-input"
-              type="text"
-              autocomplete="off"
-              placeholder="Type to search items..."
-            />
-            <div id="add-item-search-results"></div>
-          </div>
-
-          <div id="add-from-quest-inline" hidden>
-            <label for="add-quest-search-input">&gt; SEARCH QUEST:</label>
-            <input
-              id="add-quest-search-input"
-              type="text"
-              autocomplete="off"
-              placeholder="Type to search quests..."
-            />
-            <div id="add-quest-search-results"></div>
-
-            <div id="add-quest-preview" hidden></div>
-          </div>
-        </section>
 
         <!-- ACTIVE LIST TABLE -->
         <section id="active-list-table-wrapper">
           <table id="active-list-table">
             <thead>
               <tr>
-                <th class="col-qty">QTY</th>
-                <th class="col-item-name">ITEM NAME</th>
-                <th class="col-owned">OWNED</th>
-                <th class="col-source">SRC</th>
-                <th class="col-status">STATUS</th>
+                <th class="col-item-name">ITEM</th>
+                <th class="col-meta">RARITY / TYPE</th>
+                <th class="col-needed">NEEDED</th>
+                <th class="col-owned">ON HAND</th>
+                <th class="col-progress">PROGRESS</th>
+                <th class="col-actions">ACTIONS</th>
               </tr>
             </thead>
             <tbody id="active-list-tbody">
               <!-- Populated by JS -->
             </tbody>
           </table>
+          <div id="empty-active-list" hidden>
+            Select or create a list to begin tracking items.
+          </div>
         </section>
       </section>
 
@@ -211,6 +186,35 @@
         </section>
       </aside>
     </main>
+
+    <!-- ADD ITEM MODAL -->
+    <div id="modal-backdrop" hidden></div>
+    <section id="add-item-modal" class="modal" hidden aria-label="Add item from MetaForge">
+      <div class="modal-header">
+        <h2>Add item from MetaForge</h2>
+        <button id="close-add-modal" type="button" aria-label="Close">×</button>
+      </div>
+      <div class="modal-body">
+        <label for="add-item-search-input">Search canonical items</label>
+        <input
+          id="add-item-search-input"
+          type="text"
+          autocomplete="off"
+          placeholder="Type an item name..."
+        />
+        <div id="add-item-search-results" class="search-results"></div>
+        <div id="add-item-hint" class="hint">Powered by MetaForge canonical data.</div>
+      </div>
+    </section>
+
+    <!-- ITEM DETAIL MODAL -->
+    <section id="item-detail-modal" class="modal" hidden aria-label="Item details">
+      <div class="modal-header">
+        <h2 id="detail-modal-title">Item Detail</h2>
+        <button id="close-detail-modal" type="button" aria-label="Close">×</button>
+      </div>
+      <div class="modal-body" id="detail-modal-body"></div>
+    </section>
 
     <!-- STATUS BAR -->
     <footer id="status-bar">
