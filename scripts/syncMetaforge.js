@@ -400,14 +400,6 @@ async function syncMetaForge() {
   const arcs = await fetchAllPages('/arcs', 'arcs', mapArc);
   console.log(`Fetched ${arcs.length} arcs from MetaForge`);
 
-  console.log('Fetching traders from MetaForge...');
-  const traders = await fetchAllPages('/traders', 'traders', mapTrader);
-  console.log(`Fetched ${traders.length} traders from MetaForge`);
-
-  console.log(`Fetching maps from ${GAME_MAP_URL}...`);
-  const maps = await fetchAllPages(GAME_MAP_URL, 'maps', mapMap);
-  console.log(`Fetched ${maps.length} maps from MetaForge`);
-
   console.log('Upserting items into Firestore (mfItems)...');
   const itemsWritten = await upsertBatch(db, 'mfItems', items);
   console.log(`Upserted ${itemsWritten} items into mfItems`);
@@ -420,13 +412,25 @@ async function syncMetaForge() {
   const arcsWritten = await upsertBatch(db, 'mfArcs', arcs);
   console.log(`Upserted ${arcsWritten} arcs into mfArcs`);
 
-  console.log('Upserting traders into Firestore (mfTraders)...');
-  const tradersWritten = await upsertBatch(db, 'mfTraders', traders);
-  console.log(`Upserted ${tradersWritten} traders into mfTraders`);
+  try {
+    console.log('Fetching traders from MetaForge...');
+    const traders = await fetchAllPages('/traders', 'traders', mapTrader);
+    console.log(`Fetched ${traders.length} traders from MetaForge`);
 
-  console.log('Upserting maps into Firestore (mfMaps)...');
-  const mapsWritten = await upsertBatch(db, 'mfMaps', maps);
-  console.log(`Upserted ${mapsWritten} maps into mfMaps`);
+    console.log(`Fetching maps from ${GAME_MAP_URL}...`);
+    const maps = await fetchAllPages(GAME_MAP_URL, 'maps', mapMap);
+    console.log(`Fetched ${maps.length} maps from MetaForge`);
+
+    console.log('Upserting traders into Firestore (mfTraders)...');
+    const tradersWritten = await upsertBatch(db, 'mfTraders', traders);
+    console.log(`Upserted ${tradersWritten} traders into mfTraders`);
+
+    console.log('Upserting maps into Firestore (mfMaps)...');
+    const mapsWritten = await upsertBatch(db, 'mfMaps', maps);
+    console.log(`Upserted ${mapsWritten} maps into mfMaps`);
+  } catch (traderOrMapError) {
+    console.error('Trader/map sync encountered an error but canonical data was synced:', traderOrMapError);
+  }
 
   console.log('MetaForge sync completed successfully.');
 }
