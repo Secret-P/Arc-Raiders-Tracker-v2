@@ -10,7 +10,9 @@
 
 const admin = require('firebase-admin');
 
-const META_BASE_URL = process.env.META_BASE_URL || 'https://metaforge.app/arc-raiders/api';
+/*const META_BASE_URL = process.env.META_BASE_URL || 'https://metaforge.app/arc-raiders/api';
+*/
+const META_BASE_URL = process.env.META_BASE_URL || 'https://metaforge.app/api/arc-raiders';
 const FIRESTORE_BATCH_LIMIT = 500;
 
 /**
