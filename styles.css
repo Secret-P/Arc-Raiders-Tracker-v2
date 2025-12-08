@@ -438,6 +438,11 @@ button:active {
 }
 
 /* Modals */
+#modal-backdrop[hidden],
+.modal[hidden] {
+  display: none !important;
+}
+
 #modal-backdrop {
   position: fixed;
   inset: 0;
