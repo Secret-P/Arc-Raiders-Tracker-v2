@@ -45,6 +45,70 @@ async function fetchFromMetaForge(endpoint) {
   return response.json();
 }
 
+function extractPagination(payload = {}) {
+  const pagination =
+    payload.pagination ||
+    payload.meta?.pagination ||
+    payload.meta?.page ||
+    payload.pageInfo ||
+    payload.page ||
+    null;
+
+  if (pagination && typeof pagination === 'object') {
+    return pagination;
+  }
+
+  return null;
+}
+
+function getNextPage(currentPage, pagination) {
+  if (!pagination) return null;
+
+  if (pagination.next) return pagination.next;
+  if (pagination.nextPage) return pagination.nextPage;
+  if (pagination.hasNextPage === true) return currentPage + 1;
+
+  const totalPages =
+    pagination.totalPages ||
+    pagination.pageCount ||
+    pagination.total_pages ||
+    pagination.pages ||
+    null;
+  const pageField = pagination.page || pagination.currentPage || pagination.current_page || currentPage;
+
+  if (totalPages && pageField < totalPages) {
+    return pageField + 1;
+  }
+
+  return null;
+}
+
+function buildEndpointWithPage(endpoint, page) {
+  const hasQuery = endpoint.includes('?');
+  const separator = hasQuery ? '&' : '?';
+  return `${endpoint}${separator}page=${page}`;
+}
+
+async function fetchAllPages(endpoint, key, mapFn) {
+  const allRecords = [];
+  let page = 1;
+
+  while (true) {
+    const payload = await fetchFromMetaForge(buildEndpointWithPage(endpoint, page));
+    const pageRecords = normalizeList(payload, key).map(mapFn);
+    allRecords.push(...pageRecords);
+
+    const pagination = extractPagination(payload);
+    const nextPage = getNextPage(page, pagination);
+
+    if (!nextPage || nextPage === page) break;
+
+    page = nextPage;
+  }
+
+  return allRecords;
+}
+
 /**
  * Normalizes arrays that might come back as undefined/null/singletons.
  */
@@ -174,13 +238,11 @@ async function syncMetaForge() {
   const db = initFirebase();
 
   console.log(`Fetching items from ${META_BASE_URL}...`);
-  const itemsPayload = await fetchFromMetaForge('/items');
-  const items = normalizeList(itemsPayload, 'items').map(mapItem);
+  const items = await fetchAllPages('/items', 'items', mapItem);
   console.log(`Fetched ${items.length} items from MetaForge`);
 
   console.log('Fetching quests/recipes from MetaForge...');
-  const questsPayload = await fetchFromMetaForge('/quests');
-  const quests = normalizeList(questsPayload, 'quests').map(mapQuest);
+  const quests = await fetchAllPages('/quests', 'quests', mapQuest);
   console.log(`Fetched ${quests.length} quests from MetaForge`);
 
   console.log('Upserting items into Firestore (mfItems)...');
