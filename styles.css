@@ -258,6 +258,11 @@ button:active {
 }
 
 .list-item .list-title {
+  background: transparent;
+  border: none;
+  padding: 0;
+  text-align: left;
+  font: inherit;
   color: var(--crt-text-main);
 }
 
@@ -366,6 +371,140 @@ button:active {
 .col-status {
   font-family: var(--font-mono);
   letter-spacing: 0.1em;
+}
+
+/* Crafting list table refinements */
+.col-needed input.quantity-input {
+  width: 64px;
+  background: #050c17;
+  border: 1px solid #0c1c2f;
+  color: var(--crt-text-main);
+  padding: 4px;
+}
+
+.have-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.have-controls button {
+  padding: 2px 6px;
+  min-width: 28px;
+}
+
+.progress-bar {
+  height: 10px;
+  background: #0d1724;
+  border: 1px solid #1c2c3e;
+  position: relative;
+  overflow: hidden;
+}
+
+.progress-bar span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #3fe0b5, #8df8ff);
+}
+
+.item-badges {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 0.7rem;
+  color: var(--crt-text-dim);
+}
+
+.row-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.row-actions button {
+  padding: 4px 6px;
+}
+
+.list-row.complete td {
+  color: #4ef5c9;
+}
+
+#empty-active-list {
+  margin-top: var(--space-2);
+  padding: var(--space-2);
+  background: #050c17;
+  border: 1px dashed #1c2c3e;
+  color: var(--crt-text-dim);
+}
+
+/* Modals */
+#modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(2px);
+  z-index: 90;
+}
+
+.modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: #050c17;
+  border: 1px solid #1c2c3e;
+  box-shadow: var(--crt-glow-soft);
+  padding: var(--space-2);
+  width: min(720px, 90vw);
+  z-index: 100;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-2);
+}
+
+.modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.modal input[type="text"] {
+  width: 100%;
+  padding: 8px;
+  background: #0b1522;
+  border: 1px solid #1c2c3e;
+  color: var(--crt-text-main);
+}
+
+.search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.search-result {
+  padding: 8px;
+  border: 1px solid #0f1d2d;
+  background: #060d17;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.search-result .meta {
+  color: var(--crt-text-dim);
+  font-size: 0.8rem;
+}
+
+.hint {
+  color: var(--crt-text-dim);
+  font-size: 0.8rem;
 }
 
 /* INTEL PANEL */
