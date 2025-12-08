@@ -10,9 +10,7 @@
 
 const admin = require('firebase-admin');
 
-/*const META_BASE_URL = process.env.META_BASE_URL || 'https://metaforge.app/arc-raiders/api';
-*/
-const META_BASE_URL = process.env.META_BASE_URL || 'https://metaforge.app/api/arc-raiders';
+const META_BASE_URL = process.env.META_BASE_URL || 'https://metaforge.app/arc-raiders/api';
 const FIRESTORE_BATCH_LIMIT = 500;
 
 /**
@@ -126,7 +124,27 @@ function mapQuest(rawQuest) {
 
 function normalizeList(payload, key) {
   if (Array.isArray(payload)) return payload;
-  if (payload && Array.isArray(payload[key])) return payload[key];
+  if (!payload || typeof payload !== 'object') return [];
+
+  const candidateKeys = [key, 'data', 'results', 'content', 'items', 'quests', 'recipes'];
+
+  for (const candidate of candidateKeys) {
+    if (Array.isArray(payload[candidate])) return payload[candidate];
+  }
+
+  if (payload.data && typeof payload.data === 'object') {
+    const nested = payload.data;
+    for (const candidate of candidateKeys) {
+      if (Array.isArray(nested[candidate])) return nested[candidate];
+    }
+    if (Array.isArray(nested)) return nested;
+  }
+
+  console.warn(`Unexpected MetaForge response shape; available response keys: ${Object.keys(payload)}`);
+  if (payload.data && typeof payload.data === 'object' && !Array.isArray(payload.data)) {
+    console.warn(`Available data keys: ${Object.keys(payload.data)}`);
+  }
+
   return [];
 }
 
