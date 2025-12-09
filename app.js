@@ -1,12 +1,20 @@
 // app.js
-// Main app wiring: auth, lists, simple rendering.
+// Main app wiring: auth, crafting lists, rendering, and item search.
 
 import { signInWithGoogle, signOutUser, watchAuthState } from "./Auth.js";
 import { getMetaStatus } from "./metastatus.js";
 import {
-  getUserLists,
-  getListItemsWithCanonical,
+  addItemToList,
+  createList,
+  deleteListAndItems,
+  removeListItem,
+  renameList,
+  updateHaveQty,
+  updateNeededQty,
+  watchListItemsWithCanonical,
+  watchUserLists,
 } from "./craftingLists.js";
+import { searchItemsByNamePrefix } from "./mfItems.js";
 
 /* DOM references */
 const signInButton = document.getElementById("sign-in-button");
@@ -17,9 +25,19 @@ const userNameEl = document.getElementById("user-name");
 const syncStatusValue = document.getElementById("sync-status-value");
 
 const listsContainer = document.getElementById("lists-container");
+const newListButton = document.getElementById("new-list-button");
+
 const activeListTitle = document.getElementById("active-list-title");
 const activeListMeta = document.getElementById("active-list-meta");
 const activeListTbody = document.getElementById("active-list-tbody");
+
+const addItemButton = document.getElementById("add-item-button");
+const renameListButton = document.getElementById("rename-list-button");
+const deleteListButton = document.getElementById("delete-list-button");
+
+const addItemInline = document.getElementById("add-item-inline");
+const addItemSearchInput = document.getElementById("add-item-search-input");
+const addItemSearchResults = document.getElementById("add-item-search-results");
 
 const statusSummary = document.getElementById("status-summary");
 
@@ -44,6 +62,9 @@ let currentUser = null;
 let currentLists = [];
 let currentListId = null;
 let currentListItems = [];
+let unsubscribeLists = null;
+let unsubscribeItems = null;
+let searchDebounce = null;
 
 /* Auth UI handlers */
 signInButton?.addEventListener("click", async () => {
@@ -94,6 +115,9 @@ function renderLists(lists) {
   }
 
   lists.forEach((list) => {
+    const wrapper = document.createElement("div");
+    wrapper.classList.add("list-row-entry");
+
     const btn = document.createElement("button");
     btn.type = "button";
     btn.classList.add("list-item");
@@ -105,11 +129,13 @@ function renderLists(lists) {
 
     const title = document.createElement("span");
     title.classList.add("list-title");
-    title.textContent = list.title || "(Untitled List)";
+    title.textContent = list.name || "(Untitled List)";
 
     const meta = document.createElement("span");
     meta.classList.add("list-meta");
-    meta.textContent = "items count will load…";
+    meta.textContent = list.updatedAt
+      ? `Updated ${list.updatedAt.toDate().toLocaleString()}`
+      : "";
 
     btn.appendChild(title);
     btn.appendChild(meta);
@@ -119,7 +145,19 @@ function renderLists(lists) {
       loadList(list.id);
     });
 
-    listsContainer.appendChild(btn);
+    const deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.classList.add("list-delete-btn");
+    deleteBtn.textContent = "✕";
+    deleteBtn.title = "Delete list";
+    deleteBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      await handleDeleteList(list.id);
+    });
+
+    wrapper.appendChild(btn);
+    wrapper.appendChild(deleteBtn);
+    listsContainer.appendChild(wrapper);
   });
 }
 
@@ -130,96 +168,17 @@ function renderActiveListHeader(list, items) {
     return;
   }
 
-  activeListTitle.textContent = list.title || "(Untitled List)";
+  activeListTitle.textContent = list.name || "(Untitled List)";
 
   const totalItems = items.length;
-  const remaining = items.filter(
-    (i) => (i.quantityRequired || 0) - (i.quantityOwned || 0) > 0
-  ).length;
-
+  const remaining = items.filter((i) => (i.neededQty || 0) - (i.haveQty || 0) > 0)
+    .length;
   activeListMeta.textContent = `${totalItems} items • ${remaining} remaining`;
 
-  statusSummary.textContent = `${totalItems - remaining} ITEMS COMPLETE • ${remaining} REMAINING`;
+  const totalNeeded = items.reduce((acc, i) => acc + (i.neededQty || 0), 0);
+  const totalHave = items.reduce((acc, i) => acc + (i.haveQty || 0), 0);
+  statusSummary.textContent = `${totalHave}/${totalNeeded} ITEMS ON HAND`;
 }
-
-function progressBars(required, owned) {
-  const total = Math.max(required, 1);
-  const filled = Math.min(owned, required);
-  const segments = 5;
-  const ratio = filled / total;
-  const filledSegments = Math.round(ratio * segments);
-
-  let s = "";
-  for (let i = 0; i < segments; i++) {
-    s += i < filledSegments ? "■" : "□";
-  }
-  return s;
-}
-
-function renderListItems(items) {
-  activeListTbody.innerHTML = "";
-  if (!items.length) return;
-
-  items.forEach((item, index) => {
-    const tr = document.createElement("tr");
-    tr.classList.add("list-row");
-    tr.dataset.listItemId = item.id;
-    if (index === 0) tr.classList.add("is-selected");
-
-    tr.addEventListener("click", () => {
-      document
-        .querySelectorAll(".list-row.is-selected")
-        .forEach((row) => row.classList.remove("is-selected"));
-      tr.classList.add("is-selected");
-      showItemIntel(item);
-    });
-
-    const remaining =
-      (item.quantityRequired || 0) - (item.quantityOwned || 0);
-
-    const tdQty = document.createElement("td");
-    tdQty.classList.add("col-qty");
-    tdQty.textContent = item.quantityRequired ?? "-";
-
-    const tdName = document.createElement("td");
-    tdName.classList.add("col-item-name");
-    tdName.textContent = item.itemName || item?.mfItem?.name || "(Unknown)";
-
-    const tdOwned = document.createElement("td");
-    tdOwned.classList.add("col-owned");
-    const ownedSpan = document.createElement("span");
-    ownedSpan.classList.add("owned-value");
-    ownedSpan.textContent = item.quantityOwned ?? 0;
-    tdOwned.appendChild(ownedSpan);
-
-    const tdSrc = document.createElement("td");
-    tdSrc.classList.add("col-source");
-    tdSrc.textContent = (item.sourceType || "manual").toUpperCase();
-
-    const tdStatus = document.createElement("td");
-    tdStatus.classList.add("col-status");
-    tdStatus.textContent = progressBars(
-      item.quantityRequired || 0,
-      item.quantityOwned || 0
-    );
-
-    if (remaining <= 0) {
-      tr.classList.add("complete");
-    }
-
-    tr.appendChild(tdQty);
-    tr.appendChild(tdName);
-    tr.appendChild(tdOwned);
-    tr.appendChild(tdSrc);
-    tr.appendChild(tdStatus);
-
-    activeListTbody.appendChild(tr);
-  });
-
-  if (items[0]) showItemIntel(items[0]);
-}
-
-/* Intel / Power rendering */
 
 function clearList(el) {
   if (!el) return;
@@ -253,7 +212,7 @@ function showItemIntel(item) {
 
   const mf = item.mfItem;
 
-  itemDetailName.textContent = mf.name || item.itemName || "(Unknown Item)";
+  itemDetailName.textContent = mf.name || "(Unknown Item)";
   itemDetailRarity.textContent = mf.rarity || "";
   itemDetailType.textContent = mf.type || "";
 
@@ -289,8 +248,7 @@ function renderPowerIntel(items) {
   items.forEach((item) => {
     const mf = item.mfItem;
     if (!mf) return;
-    const remaining =
-      (item.quantityRequired || 0) - (item.quantityOwned || 0);
+    const remaining = (item.neededQty || 0) - (item.haveQty || 0);
     if (remaining <= 0) return;
     totalRemaining += remaining;
 
@@ -311,8 +269,7 @@ function renderPowerIntel(items) {
     });
   });
 
-  const sortEntries = (obj) =>
-    Object.entries(obj).sort((a, b) => b[1] - a[1]);
+  const sortEntries = (obj) => Object.entries(obj).sort((a, b) => b[1] - a[1]);
 
   const mapsSorted = sortEntries(mapScore);
   const biomesSorted = sortEntries(biomeScore);
@@ -338,9 +295,107 @@ function renderPowerIntel(items) {
   if (confidence > 0.6) label = "High confidence";
   else if (confidence < 0.3) label = "Scattered";
 
-  powerConfidenceText.textContent = `${label}: ${
-    mapsSorted[0][0]
-  } covers ${Math.round(confidence * 100)}% of remaining needs.`;
+  powerConfidenceText.textContent = `${label}: ${mapsSorted[0][0]} covers ${Math.round(
+    confidence * 100
+  )}% of remaining needs.`;
+}
+
+function renderListItems(items) {
+  activeListTbody.innerHTML = "";
+  if (!items.length) {
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = 4;
+    td.textContent = "No items yet.";
+    tr.appendChild(td);
+    activeListTbody.appendChild(tr);
+    return;
+  }
+
+  items.forEach((item, index) => {
+    const tr = document.createElement("tr");
+    tr.classList.add("list-row");
+    tr.dataset.listItemId = item.id;
+    if (index === 0) tr.classList.add("is-selected");
+
+    tr.addEventListener("click", () => {
+      document
+        .querySelectorAll(".list-row.is-selected")
+        .forEach((row) => row.classList.remove("is-selected"));
+      tr.classList.add("is-selected");
+      showItemIntel(item);
+    });
+
+    const tdName = document.createElement("td");
+    tdName.classList.add("col-item-name");
+    const nameText = item.mfItem?.name || "(Unknown Item)";
+    tdName.textContent = nameText;
+    if (item.mfItem?.rarity || item.mfItem?.type) {
+      const meta = document.createElement("div");
+      meta.classList.add("item-meta");
+      meta.textContent = [item.mfItem?.rarity, item.mfItem?.type]
+        .filter(Boolean)
+        .join(" • ");
+      tdName.appendChild(meta);
+    }
+
+    const tdNeeded = document.createElement("td");
+    tdNeeded.classList.add("col-qty");
+    const neededInput = document.createElement("input");
+    neededInput.type = "number";
+    neededInput.min = "0";
+    neededInput.value = item.neededQty ?? 0;
+    neededInput.addEventListener("change", async (e) => {
+      const value = Math.max(0, Number(e.target.value) || 0);
+      await updateNeededQty(currentListId, item.id, currentUser.uid, value);
+    });
+    tdNeeded.appendChild(neededInput);
+
+    const tdOwned = document.createElement("td");
+    tdOwned.classList.add("col-owned");
+    const decBtn = document.createElement("button");
+    decBtn.type = "button";
+    decBtn.textContent = "-";
+    decBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const next = Math.max(0, (item.haveQty || 0) - 1);
+      await updateHaveQty(currentListId, item.id, currentUser.uid, next);
+    });
+    const ownedSpan = document.createElement("span");
+    ownedSpan.classList.add("owned-value");
+    ownedSpan.textContent = item.haveQty ?? 0;
+    const incBtn = document.createElement("button");
+    incBtn.type = "button";
+    incBtn.textContent = "+";
+    incBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const next = Math.max(0, (item.haveQty || 0) + 1);
+      await updateHaveQty(currentListId, item.id, currentUser.uid, next);
+    });
+    tdOwned.appendChild(decBtn);
+    tdOwned.appendChild(ownedSpan);
+    tdOwned.appendChild(incBtn);
+
+    const tdActions = document.createElement("td");
+    tdActions.classList.add("col-actions");
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.textContent = "Remove";
+    removeBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      await removeListItem(currentListId, item.id, currentUser.uid);
+    });
+    tdActions.appendChild(removeBtn);
+
+    tr.appendChild(tdName);
+    tr.appendChild(tdNeeded);
+    tr.appendChild(tdOwned);
+    tr.appendChild(tdActions);
+
+    activeListTbody.appendChild(tr);
+  });
+
+  if (items[0]) showItemIntel(items[0]);
 }
 
 /* Data loading */
@@ -351,6 +406,9 @@ async function loadForUser(user) {
   userInfo.hidden = false;
   userNameEl.textContent = user.displayName || user.email || "User";
 
+  if (unsubscribeLists) unsubscribeLists();
+  if (unsubscribeItems) unsubscribeItems();
+
   // sync status
   try {
     const meta = await getMetaStatus();
@@ -359,53 +417,59 @@ async function loadForUser(user) {
     console.error("Error loading metaStatus:", err);
   }
 
-  // lists
-  try {
-    console.log("UID used for query:", user.uid);
-    currentLists = await getUserLists(user.uid);
-    console.log("Lists returned from Firestore:", currentLists);
+  unsubscribeLists = watchUserLists(user.uid, (lists) => {
+    currentLists = lists;
     renderLists(currentLists);
-
-    if (currentLists.length) {
-      await loadList(currentLists[0].id);
-    } else {
-      activeListTitle.textContent = "";
-      activeListMeta.textContent = "";
-      activeListTbody.innerHTML = "";
-      statusSummary.textContent = "No lists yet.";
+    const stillExists = currentLists.some((l) => l.id === currentListId);
+    if (!stillExists) {
+      currentListId = currentLists[0]?.id || null;
+      if (currentListId) {
+        subscribeToList(currentListId);
+      } else {
+        activeListTitle.textContent = "";
+        activeListMeta.textContent = "";
+        activeListTbody.innerHTML = "";
+        addItemInline.hidden = true;
+      }
     }
-  } catch (err) {
-    console.error("Error loading lists:", err);
+  });
+
+  if (currentLists.length) {
+    loadList(currentLists[0].id);
   }
 }
 
 async function loadList(listId) {
-  if (!currentUser) return;
+  if (!currentUser || !listId) return;
   currentListId = listId;
-
-  // toggle active state in left panel
+  addItemInline.hidden = true;
+  addItemSearchInput.value = "";
+  addItemSearchResults.innerHTML = "";
+  subscribeToList(listId);
   document.querySelectorAll(".list-item").forEach((btn) => {
     btn.classList.toggle("is-active", btn.dataset.listId === listId);
   });
+}
 
-  try {
-    currentListItems = await getListItemsWithCanonical(
-      listId,
-      currentUser.uid
-    );
-    console.log("Items returned for list", listId, currentListItems);
+function subscribeToList(listId) {
+  if (unsubscribeItems) unsubscribeItems();
+  unsubscribeItems = watchListItemsWithCanonical(listId, currentUser.uid, (items) => {
+    currentListItems = items;
     const list = currentLists.find((l) => l.id === listId) || null;
     renderActiveListHeader(list, currentListItems);
     renderListItems(currentListItems);
-  } catch (err) {
-    console.error("Error loading list items:", err);
-  }
+  });
 }
 
 /* Signed-out UI */
 
 function showSignedOutUI() {
   currentUser = null;
+  if (unsubscribeLists) unsubscribeLists();
+  if (unsubscribeItems) unsubscribeItems();
+  unsubscribeLists = null;
+  unsubscribeItems = null;
+
   signInButton.hidden = false;
   userInfo.hidden = true;
   userNameEl.textContent = "";
@@ -418,16 +482,148 @@ function showSignedOutUI() {
   activeListMeta.textContent = "";
   activeListTbody.innerHTML = "";
   statusSummary.textContent = "";
+  addItemInline.hidden = true;
+  addItemSearchInput.value = "";
+  addItemSearchResults.innerHTML = "";
 
   intelEmptyState.hidden = false;
   itemDetailSection.hidden = true;
 
-  // clear power intel
   powerMapsList.innerHTML = "";
   powerBiomesList.innerHTML = "";
   powerVendorsList.innerHTML = "";
   powerEnemiesList.innerHTML = "";
   powerConfidenceText.textContent = "";
+}
+
+/* List actions */
+
+newListButton?.addEventListener("click", async () => {
+  if (!currentUser) return;
+  const name = prompt("Enter a name for the new list:", "New List");
+  if (name === null) return;
+  try {
+    const id = await createList(currentUser.uid, name);
+    await loadList(id);
+  } catch (err) {
+    console.error("Error creating list:", err);
+    alert("Could not create list. Check console for details.");
+  }
+});
+
+async function handleDeleteList(listId) {
+  if (!currentUser) return;
+  const confirmed = confirm(
+    "Delete this list? This will remove the list and all of its items. Canonical MetaForge data will not be affected."
+  );
+  if (!confirmed) return;
+  try {
+    await deleteListAndItems(listId, currentUser.uid);
+    if (currentListId === listId) {
+      currentListId = null;
+    }
+  } catch (err) {
+    console.error("Error deleting list:", err);
+    alert("Could not delete list. Check console for details.");
+  }
+}
+
+deleteListButton?.addEventListener("click", () => {
+  if (!currentListId) return;
+  handleDeleteList(currentListId);
+});
+
+renameListButton?.addEventListener("click", async () => {
+  if (!currentUser || !currentListId) return;
+  const list = currentLists.find((l) => l.id === currentListId);
+  const name = prompt("Rename list:", list?.name || "");
+  if (name === null) return;
+  try {
+    await renameList(currentListId, currentUser.uid, name);
+  } catch (err) {
+    console.error("Error renaming list:", err);
+    alert("Could not rename list. Check console for details.");
+  }
+});
+
+/* Add item flow */
+
+addItemButton?.addEventListener("click", () => {
+  if (!currentListId) return;
+  const isHidden = addItemInline.hidden;
+  addItemInline.hidden = !isHidden;
+  if (!addItemInline.hidden) {
+    addItemSearchInput.focus();
+    runSearch(addItemSearchInput.value || "");
+  }
+});
+
+addItemSearchInput?.addEventListener("input", (e) => {
+  if (!currentListId) return;
+  if (searchDebounce) clearTimeout(searchDebounce);
+  const value = e.target.value || "";
+  searchDebounce = setTimeout(() => runSearch(value), 200);
+});
+
+async function runSearch(term) {
+  addItemSearchResults.innerHTML = "";
+  if (!term) {
+    const p = document.createElement("p");
+    p.textContent = "Start typing to search canonical items.";
+    addItemSearchResults.appendChild(p);
+    return;
+  }
+  try {
+    const results = await searchItemsByNamePrefix(term, 10);
+    if (!results.length) {
+      const p = document.createElement("p");
+      p.textContent = "No matches found.";
+      addItemSearchResults.appendChild(p);
+      return;
+    }
+    results.forEach((item) => {
+      const row = document.createElement("div");
+      row.classList.add("search-result");
+
+      const info = document.createElement("div");
+      info.classList.add("search-result-info");
+      const name = document.createElement("div");
+      name.textContent = item.name;
+      const meta = document.createElement("div");
+      meta.classList.add("search-result-meta");
+      meta.textContent = [item.rarity, item.type].filter(Boolean).join(" • ");
+      info.appendChild(name);
+      info.appendChild(meta);
+
+      const addBtn = document.createElement("button");
+      addBtn.type = "button";
+      addBtn.textContent = "Add";
+      addBtn.addEventListener("click", async () => {
+        const res = await addItemToList(
+          currentListId,
+          currentUser.uid,
+          item.id
+        );
+        if (res.success) {
+          addItemSearchInput.value = "";
+          addItemInline.hidden = true;
+        } else if (res.reason === "duplicate") {
+          alert("Item already in this list.");
+        } else {
+          alert("Could not add item. Check console for details.");
+        }
+      });
+
+      row.appendChild(info);
+      row.appendChild(addBtn);
+      addItemSearchResults.appendChild(row);
+    });
+  } catch (err) {
+    console.error("Search error:", err);
+    const p = document.createElement("p");
+    p.textContent = "Error searching items.";
+    addItemSearchResults.appendChild(p);
+  }
 }
 
 /* Auth state watcher */

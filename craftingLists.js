@@ -3,13 +3,19 @@
 
 import { db } from "./firebase.js";
 import {
+  addDoc,
   collection,
-  query,
-  where,
-  orderBy,
-  getDocs,
+  deleteDoc,
   doc,
   getDoc,
+  getDocs,
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  updateDoc,
+  where,
 } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 import { getItemById } from "./mfItems.js";
 
@@ -23,8 +29,10 @@ function normalizeListDoc(docSnap) {
   return {
     id: docSnap.id,
     ...data,
+    name: data.name || data.title || "Untitled List",
     isArchived: data.isArchived ?? false,
     createdAt: normalizeCreatedAt(data.createdAt),
+    updatedAt: normalizeCreatedAt(data.updatedAt),
   };
 }
 
@@ -33,99 +41,193 @@ function normalizeItemDoc(docSnap) {
   return {
     id: docSnap.id,
     ...data,
+    neededQty: data.neededQty ?? data.quantityRequired ?? 0,
+    haveQty: data.haveQty ?? data.quantityOwned ?? 0,
+    canonicalItemId: data.canonicalItemId || data.itemId || null,
     createdAt: normalizeCreatedAt(data.createdAt),
+    updatedAt: normalizeCreatedAt(data.updatedAt),
   };
 }
 
-// Returns only the active lists owned by the current user.
-// Likely composite index: craftingLists ownerId ==, isArchived ==, orderBy createdAt desc.
-export async function getUserLists(uid) {
+// Subscribe to active lists owned by the current user.
+// Returns an unsubscribe function.
+export function watchUserLists(uid, onChange) {
   const colRef = collection(db, "craftingLists");
   const baseConstraints = [
     where("ownerId", "==", uid),
     where("isArchived", "==", false),
   ];
 
-  let snap;
+  let q;
   try {
-    const orderedQuery = query(
-      colRef,
-      ...baseConstraints,
-      orderBy("createdAt", "desc")
-    );
-    snap = await getDocs(orderedQuery);
+    q = query(colRef, ...baseConstraints, orderBy("createdAt", "desc"));
   } catch (err) {
-    // Fall back if index/orderBy not available or createdAt missing types.
     console.warn(
-      "getUserLists: orderBy(createdAt) failed, falling back to unordered query",
+      "watchUserLists: orderBy(createdAt) failed, using unordered query",
       err
     );
-    const fallbackQuery = query(colRef, ...baseConstraints);
-    snap = await getDocs(fallbackQuery);
+    q = query(colRef, ...baseConstraints);
   }
 
-  const lists = snap.docs
-    .map((docSnap) => normalizeListDoc(docSnap))
-    .sort((a, b) => {
-      const aTime = a.createdAt ? a.createdAt.toMillis() : 0;
-      const bTime = b.createdAt ? b.createdAt.toMillis() : 0;
-      return bTime - aTime;
-    });
-
-  console.log("DEBUG: Filtered lists from Firestore:", lists);
-  return lists;
+  return onSnapshot(q, (snap) => {
+    const lists = snap.docs
+      .map((docSnap) => normalizeListDoc(docSnap))
+      .sort((a, b) => {
+        const aTime = a.createdAt ? a.createdAt.toMillis() : 0;
+        const bTime = b.createdAt ? b.createdAt.toMillis() : 0;
+        return bTime - aTime;
+      });
+    onChange(lists);
+  });
 }
 
-export async function getListItems(listId, uid) {
+export async function createList(uid, name) {
+  const colRef = collection(db, "craftingLists");
+  const payload = {
+    ownerId: uid,
+    name: name?.trim() || "Untitled List",
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    isArchived: false,
+  };
+  const docRef = await addDoc(colRef, payload);
+  return docRef.id;
+}
+
+export async function renameList(listId, uid, name) {
+  const ref = doc(db, "craftingLists", listId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return false;
+  const data = snap.data();
+  if (data.ownerId !== uid) return false;
+  await updateDoc(ref, {
+    name: name?.trim() || "Untitled List",
+    updatedAt: serverTimestamp(),
+  });
+  return true;
+}
+
+export async function deleteListAndItems(listId, uid) {
+  const ref = doc(db, "craftingLists", listId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return false;
+  const data = snap.data();
+  if (data.ownerId !== uid) return false;
+
+  // Delete items first
+  const itemsCol = collection(db, "craftingLists", listId, "items");
+  const itemsQuery = query(itemsCol, where("ownerId", "==", uid));
+  const itemsSnap = await getDocs(itemsQuery);
+  await Promise.all(itemsSnap.docs.map((d) => deleteDoc(d.ref)));
+
+  await deleteDoc(ref);
+  return true;
+}
+
+export function watchListItems(listId, uid, onChange) {
   const colRef = collection(db, "craftingLists", listId, "items");
-  const baseConstraints = [where("ownerId", "==", uid)];
-
-  let snap;
+  let q;
   try {
-    // Likely composite index per subcollection: ownerId ==, orderBy createdAt asc.
-    const orderedQuery = query(
-      colRef,
-      ...baseConstraints,
-      orderBy("createdAt", "asc")
-    );
-    snap = await getDocs(orderedQuery);
+    q = query(colRef, where("ownerId", "==", uid), orderBy("createdAt", "asc"));
   } catch (err) {
-    // Fall back if createdAt is missing or index not ready.
     console.warn(
-      "getListItems: orderBy(createdAt) failed, falling back to unordered query",
+      "watchListItems: orderBy(createdAt) failed, using unordered query",
       err
     );
-    const fallbackQuery = query(colRef, ...baseConstraints);
-    snap = await getDocs(fallbackQuery);
+    q = query(colRef, where("ownerId", "==", uid));
   }
 
-  const items = snap.docs
-    .map((docSnap) => normalizeItemDoc(docSnap))
-    .sort((a, b) => {
-      const aTime = a.createdAt ? a.createdAt.toMillis() : 0;
-      const bTime = b.createdAt ? b.createdAt.toMillis() : 0;
-      return aTime - bTime;
-    });
-
-  console.log("DEBUG: Filtered items for list", listId, items);
-  return items;
+  return onSnapshot(q, (snap) => {
+    const items = snap.docs
+      .map((docSnap) => normalizeItemDoc(docSnap))
+      .sort((a, b) => {
+        const aTime = a.createdAt ? a.createdAt.toMillis() : 0;
+        const bTime = b.createdAt ? b.createdAt.toMillis() : 0;
+        return aTime - bTime;
+      });
+    onChange(items);
+  });
 }
 
-export async function getListItemsWithCanonical(listId, uid) {
-  const baseItems = await getListItems(listId, uid);
+const canonicalCache = new Map();
 
-  const enriched = await Promise.all(
-    baseItems.map(async (listItem) => {
-      let mfItem = null;
-      if (listItem.itemId) {
-        mfItem = await getItemById(listItem.itemId);
-      }
-      return {
-        ...listItem,
-        mfItem,
-      };
-    })
+async function getCanonicalCached(itemId) {
+  if (!itemId) return null;
+  if (canonicalCache.has(itemId)) return canonicalCache.get(itemId);
+  const item = await getItemById(itemId);
+  canonicalCache.set(itemId, item);
+  return item;
+}
+
+export function watchListItemsWithCanonical(listId, uid, onChange) {
+  return watchListItems(listId, uid, async (items) => {
+    const enriched = await Promise.all(
+      items.map(async (listItem) => {
+        const mfItem = await getCanonicalCached(listItem.canonicalItemId);
+        return { ...listItem, mfItem };
+      })
+    );
+    onChange(enriched);
+  });
+}
+
+export async function addItemToList(listId, uid, canonicalItemId) {
+  if (!canonicalItemId) return { success: false, reason: "missing-id" };
+  const colRef = collection(db, "craftingLists", listId, "items");
+
+  // prevent duplicates
+  const existingQuery = query(
+    colRef,
+    where("ownerId", "==", uid),
+    where("canonicalItemId", "==", canonicalItemId),
+    limit(1)
   );
+  const existingSnap = await getDocs(existingQuery);
+  if (!existingSnap.empty) {
+    return { success: false, reason: "duplicate" };
+  }
 
-  return enriched;
+  const payload = {
+    ownerId: uid,
+    canonicalItemId,
+    neededQty: 1,
+    haveQty: 0,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+
+  await addDoc(colRef, payload);
+  return { success: true };
+}
+
+export async function updateNeededQty(listId, itemId, uid, neededQty) {
+  const ref = doc(db, "craftingLists", listId, "items", itemId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return false;
+  const data = snap.data();
+  if (data.ownerId !== uid) return false;
+  const sanitized = Math.max(0, Math.round(Number(neededQty) || 0));
+  await updateDoc(ref, { neededQty: sanitized, updatedAt: serverTimestamp() });
+  return true;
+}
+
+export async function updateHaveQty(listId, itemId, uid, haveQty) {
+  const ref = doc(db, "craftingLists", listId, "items", itemId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return false;
+  const data = snap.data();
+  if (data.ownerId !== uid) return false;
+  const sanitized = Math.max(0, Math.round(Number(haveQty) || 0));
+  await updateDoc(ref, { haveQty: sanitized, updatedAt: serverTimestamp() });
+  return true;
+}
+
+export async function removeListItem(listId, itemId, uid) {
+  const ref = doc(db, "craftingLists", listId, "items", itemId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return false;
+  const data = snap.data();
+  if (data.ownerId !== uid) return false;
+  await deleteDoc(ref);
+  return true;
 }
