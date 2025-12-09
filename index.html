@@ -21,11 +21,6 @@
     <header id="top-bar">
       <div id="app-title">ARC RAIDERS TRACKER v2</div>
 
-      <div id="top-bar-center">
-        <span id="sync-status-label">DATA SYNC:</span>
-        <span id="sync-status-value" data-sync-status="unknown">--</span>
-      </div>
-
       <div id="top-bar-user">
         <button id="sign-in-button" type="button">SIGN IN WITH GOOGLE</button>
         <div id="user-info" hidden>
@@ -222,7 +217,9 @@
     <!-- STATUS BAR -->
     <footer id="status-bar">
       <span id="status-summary"></span>
-      <span class="powered-by">Powered by MetaForge</span>
+      <span class="powered-by" id="footer-sync-text"
+        >POWERED BY METAFORGE</span
+      >
     </footer>
 
     <!-- APP ENTRYPOINT -->
