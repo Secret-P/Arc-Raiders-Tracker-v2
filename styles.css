@@ -351,7 +351,7 @@ button:active {
 #active-list-table {
   width: 100%;
   border-collapse: separate;
-  border-spacing: 0 2px;
+  border-spacing: 0 4px;
   font-size: 0.8rem;
 }
 
@@ -387,17 +387,25 @@ button:active {
   text-align: center;
 }
 
-#active-list-tbody tr {
+#active-list-tbody tr.list-row {
   cursor: pointer;
+  position: relative;
+  background: #060a12;
+  border-radius: 2px;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-#active-list-tbody tr:hover {
+#active-list-tbody tr.list-row:hover {
   background: #08101c;
 }
 
-#active-list-tbody tr.is-selected {
+#active-list-tbody tr.list-row.is-selected {
   background: #050c17;
-  box-shadow: inset 0 0 0 1px var(--crt-accent-strong);
+  box-shadow: 0 0 0 1px var(--crt-accent-strong);
+}
+
+#active-list-tbody tr.list-row.is-selected:hover {
+  box-shadow: 0 0 0 1px var(--crt-accent-strong);
 }
 
 /* Owned controls */
