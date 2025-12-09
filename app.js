@@ -57,6 +57,7 @@ const powerBiomesList = document.getElementById("power-biomes-list");
 const powerVendorsList = document.getElementById("power-vendors-list");
 const powerEnemiesList = document.getElementById("power-enemies-list");
 const powerConfidenceText = document.getElementById("power-confidence-text");
+const intelToggleButton = document.getElementById("intel-toggle-button");
 
 let currentUser = null;
 let currentLists = [];
@@ -134,14 +135,7 @@ function renderLists(lists) {
     title.classList.add("list-title");
     title.textContent = list.name || "(Untitled List)";
 
-    const meta = document.createElement("span");
-    meta.classList.add("list-meta");
-    meta.textContent = list.updatedAt
-      ? `Updated ${list.updatedAt.toDate().toLocaleString()}`
-      : "";
-
     btn.appendChild(title);
-    btn.appendChild(meta);
 
     btn.addEventListener("click", () => {
       if (currentListId === list.id) return;
@@ -348,6 +342,7 @@ function renderListItems(items) {
     neededInput.type = "number";
     neededInput.min = "0";
     neededInput.value = item.neededQty ?? 0;
+    neededInput.classList.add("quantity-input");
     neededInput.addEventListener("change", async (e) => {
       const value = Math.max(0, Number(e.target.value) || 0);
       await updateNeededQty(currentListId, item.id, currentUser.uid, value);
@@ -364,9 +359,16 @@ function renderListItems(items) {
       const next = Math.max(0, (item.haveQty || 0) - 1);
       await updateHaveQty(currentListId, item.id, currentUser.uid, next);
     });
-    const ownedSpan = document.createElement("span");
-    ownedSpan.classList.add("owned-value");
-    ownedSpan.textContent = item.haveQty ?? 0;
+    const ownedInput = document.createElement("input");
+    ownedInput.type = "number";
+    ownedInput.min = "0";
+    ownedInput.value = item.haveQty ?? 0;
+    ownedInput.classList.add("quantity-input", "owned-value");
+    ownedInput.addEventListener("change", async (e) => {
+      e.stopPropagation();
+      const value = Math.max(0, Number(e.target.value) || 0);
+      await updateHaveQty(currentListId, item.id, currentUser.uid, value);
+    });
     const incBtn = document.createElement("button");
     incBtn.type = "button";
     incBtn.textContent = "+";
@@ -376,7 +378,7 @@ function renderListItems(items) {
       await updateHaveQty(currentListId, item.id, currentUser.uid, next);
     });
     tdOwned.appendChild(decBtn);
-    tdOwned.appendChild(ownedSpan);
+    tdOwned.appendChild(ownedInput);
     tdOwned.appendChild(incBtn);
 
     const tdActions = document.createElement("td");
@@ -705,6 +707,14 @@ deleteListButton?.addEventListener("click", () => {
   handleDeleteList(currentListId);
 });
 
+intelToggleButton?.addEventListener("click", () => {
+  const isCollapsed = document.body.classList.toggle("intel-collapsed");
+  document.body.classList.toggle("intel-expanded", !isCollapsed);
+  intelToggleButton.textContent = isCollapsed
+    ? "Show Advanced Intel Panel"
+    : "Hide Advanced Intel Panel";
+});
+
 renameListButton?.addEventListener("click", async () => {
   if (!currentUser || !currentListId) return;
   const list = currentLists.find((l) => l.id === currentListId);
@@ -743,3 +753,7 @@ watchAuthState(
     showSignedOutUI();
   }
 );
+
+// Default to collapsed intel panel on load
+document.body.classList.add("intel-collapsed");
+intelToggleButton.textContent = "Show Advanced Intel Panel";

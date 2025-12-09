@@ -114,104 +114,115 @@
         </section>
       </section>
 
-      <!-- RIGHT PANEL: ITEM + POWER INTEL -->
-      <aside id="intel-panel" aria-label="Item and Power Intel">
-        <!-- Default / empty state -->
-        <section id="intel-empty-state">
-          <header class="panel-header">
-            <span>&gt; POWER INTEL</span>
-          </header>
-          <p>
-            Select an item from the list to view drop locations, vendors, and
-            enemy intel.
-          </p>
-        </section>
+      <div id="intel-panel-container">
+        <button
+          id="intel-toggle-button"
+          class="advanced-panel-toggle"
+          type="button"
+        >
+          Show Advanced Intel Panel
+        </button>
 
-        <!-- Item detail -->
-        <section id="item-detail-section" hidden>
-          <header class="panel-header">
-            <span>&gt; ITEM DETAIL</span>
-          </header>
+        <!-- RIGHT PANEL: ITEM + POWER INTEL -->
+        <aside id="intel-panel" aria-label="Item and Power Intel">
+          <!-- Default / empty state -->
+          <section id="intel-empty-state">
+            <header class="panel-header">
+              <span>&gt; POWER INTEL</span>
+            </header>
+            <p>
+              FUTURE PHASE: Select an item from the list to view drop locations,
+              vendors, and enemy intel.
+            </p>
+          </section>
 
-          <div id="item-detail-main">
-            <div id="item-detail-name-row">
-              <span id="item-detail-name"></span>
-            </div>
-            <div id="item-detail-meta">
-              <span id="item-detail-rarity"></span>
-              <span id="item-detail-type"></span>
-            </div>
-          </div>
+          <!-- Item detail -->
+          <section id="item-detail-section" hidden>
+            <header class="panel-header">
+              <span>&gt; ITEM DETAIL</span>
+            </header>
 
-          <div id="item-detail-sources">
-            <h2>WHERE TO FIND</h2>
-
-            <div class="intel-block" id="item-maps-block">
-              <h3>MAPS</h3>
-              <ul id="item-maps-list"></ul>
-            </div>
-
-            <div class="intel-block" id="item-biomes-block">
-              <h3>BIOMES</h3>
-              <ul id="item-biomes-list"></ul>
+            <div id="item-detail-main">
+              <div id="item-detail-name-row">
+                <span id="item-detail-name"></span>
+              </div>
+              <div id="item-detail-meta">
+                <span id="item-detail-rarity"></span>
+                <span id="item-detail-type"></span>
+              </div>
             </div>
 
-            <div class="intel-block" id="item-enemies-block">
-              <h3>ENEMIES</h3>
-              <ul id="item-enemies-list"></ul>
-            </div>
+            <div id="item-detail-sources">
+              <h2>WHERE TO FIND</h2>
 
-            <div class="intel-block" id="item-vendors-block">
-              <h3>VENDORS</h3>
-              <ul id="item-vendors-list"></ul>
-            </div>
+              <div class="intel-block" id="item-maps-block">
+                <h3>MAPS</h3>
+                <ul id="item-maps-list"></ul>
+              </div>
 
-            <div class="intel-block" id="item-related-block">
-              <h3>RELATED</h3>
-              <ul id="item-related-list"></ul>
-            </div>
-          </div>
-        </section>
+              <div class="intel-block" id="item-biomes-block">
+                <h3>BIOMES</h3>
+                <ul id="item-biomes-list"></ul>
+              </div>
 
-        <!-- Power intel for active list -->
-        <section id="power-intel-section">
-          <header class="panel-header">
-            <span>&gt; LIST POWER RECOMMENDATIONS</span>
-          </header>
+              <div class="intel-block" id="item-enemies-block">
+                <h3>ENEMIES</h3>
+                <ul id="item-enemies-list"></ul>
+              </div>
 
-          <div id="power-intel-content">
-            <div class="intel-block" id="power-maps-block">
-              <h3>RECOMMENDED MAPS</h3>
-              <ul id="power-maps-list"></ul>
-            </div>
+              <div class="intel-block" id="item-vendors-block">
+                <h3>VENDORS</h3>
+                <ul id="item-vendors-list"></ul>
+              </div>
 
-            <div class="intel-block" id="power-biomes-block">
-              <h3>PRIMARY BIOMES</h3>
-              <ul id="power-biomes-list"></ul>
+              <div class="intel-block" id="item-related-block">
+                <h3>RELATED</h3>
+                <ul id="item-related-list"></ul>
+              </div>
             </div>
+          </section>
 
-            <div class="intel-block" id="power-vendors-block">
-              <h3>VENDOR PRIORITY</h3>
-              <ul id="power-vendors-list"></ul>
-            </div>
+          <!-- Power intel for active list -->
+          <section id="power-intel-section">
+            <header class="panel-header">
+              <span>&gt; LIST POWER RECOMMENDATIONS</span>
+            </header>
 
-            <div class="intel-block" id="power-enemies-block">
-              <h3>ENEMY PRIORITY</h3>
-              <ul id="power-enemies-list"></ul>
-            </div>
+            <div id="power-intel-content">
+              <div class="intel-block" id="power-maps-block">
+                <h3>RECOMMENDED MAPS</h3>
+                <ul id="power-maps-list"></ul>
+              </div>
 
-            <div class="intel-block" id="power-confidence-block">
-              <h3>STRATEGY SUMMARY</h3>
-              <p id="power-confidence-text"></p>
+              <div class="intel-block" id="power-biomes-block">
+                <h3>PRIMARY BIOMES</h3>
+                <ul id="power-biomes-list"></ul>
+              </div>
+
+              <div class="intel-block" id="power-vendors-block">
+                <h3>VENDOR PRIORITY</h3>
+                <ul id="power-vendors-list"></ul>
+              </div>
+
+              <div class="intel-block" id="power-enemies-block">
+                <h3>ENEMY PRIORITY</h3>
+                <ul id="power-enemies-list"></ul>
+              </div>
+
+              <div class="intel-block" id="power-confidence-block">
+                <h3>STRATEGY SUMMARY</h3>
+                <p id="power-confidence-text"></p>
+              </div>
             </div>
-          </div>
-        </section>
-      </aside>
+          </section>
+        </aside>
+      </div>
     </main>
 
     <!-- STATUS BAR -->
     <footer id="status-bar">
       <span id="status-summary"></span>
+      <span class="powered-by">Powered by MetaForge</span>
     </footer>
 
     <!-- APP ENTRYPOINT -->
