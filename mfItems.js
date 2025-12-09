@@ -21,6 +21,12 @@ export async function getItemById(itemId) {
   return { id: snap.id, ...snap.data() };
 }
 
+export async function loadAllCanonicalItems() {
+  const colRef = collection(db, "mfItems");
+  const snap = await getDocs(colRef);
+  return snap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+}
+
 // Type-ahead search with graceful fallback when indexes/fields are missing.
 export async function searchItemsByNamePrefix(term, maxResults = 10) {
   if (!term) return [];

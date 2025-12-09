@@ -14,7 +14,7 @@ import {
   watchListItemsWithCanonical,
   watchUserLists,
 } from "./craftingLists.js";
-import { searchItemsByNamePrefix } from "./mfItems.js";
+import { loadAllCanonicalItems } from "./mfItems.js";
 
 /* DOM references */
 const signInButton = document.getElementById("sign-in-button");
@@ -36,8 +36,8 @@ const renameListButton = document.getElementById("rename-list-button");
 const deleteListButton = document.getElementById("delete-list-button");
 
 const addItemInline = document.getElementById("add-item-inline");
-const addItemSearchInput = document.getElementById("add-item-search-input");
-const addItemSearchResults = document.getElementById("add-item-search-results");
+const itemSearchInput = document.getElementById("itemSearchInput");
+const itemSearchResults = document.getElementById("itemSearchResults");
 
 const statusSummary = document.getElementById("status-summary");
 
@@ -65,6 +65,9 @@ let currentListItems = [];
 let unsubscribeLists = null;
 let unsubscribeItems = null;
 let searchDebounce = null;
+let allCanonicalItems = [];
+let canonicalItemsLoaded = false;
+let canonicalItemsLoading = null;
 
 /* Auth UI handlers */
 signInButton?.addEventListener("click", async () => {
@@ -398,6 +401,171 @@ function renderListItems(items) {
   if (items[0]) showItemIntel(items[0]);
 }
 
+/* Canonical items search helpers */
+
+async function ensureCanonicalItemsLoaded() {
+  if (canonicalItemsLoaded) return allCanonicalItems;
+  if (canonicalItemsLoading) return canonicalItemsLoading;
+
+  canonicalItemsLoading = loadAllCanonicalItems()
+    .then((items) => {
+      allCanonicalItems = items;
+      canonicalItemsLoaded = true;
+      return items;
+    })
+    .catch((err) => {
+      console.error("Error loading canonical items:", err);
+      canonicalItemsLoading = null;
+      throw err;
+    });
+
+  return canonicalItemsLoading;
+}
+
+function isWordBoundary(name, index) {
+  if (index === 0) return true;
+  const prev = name[index - 1];
+  return /\s|[-_/]/.test(prev);
+}
+
+function fuzzyScore(name, query) {
+  const lowerName = (name || "").toLowerCase();
+  if (!lowerName) return -1;
+
+  const substringIndex = lowerName.indexOf(query);
+  if (substringIndex !== -1) {
+    let score = 200 - substringIndex * 2 - (lowerName.length - query.length);
+    if (isWordBoundary(lowerName, substringIndex)) {
+      score += 30;
+    }
+    return score;
+  }
+
+  let lastIndex = -1;
+  let gapPenalty = 0;
+  for (let i = 0; i < query.length; i++) {
+    const ch = query[i];
+    const idx = lowerName.indexOf(ch, lastIndex + 1);
+    if (idx === -1) return -1;
+    if (lastIndex !== -1) {
+      gapPenalty += idx - lastIndex - 1;
+    }
+    lastIndex = idx;
+  }
+
+  const firstIndex = lowerName.indexOf(query[0]);
+  let score = 140 - gapPenalty - (lastIndex - firstIndex);
+  if (isWordBoundary(lowerName, firstIndex)) {
+    score += 10;
+  }
+  return score;
+}
+
+function getFuzzyMatches(query, items, maxResults = 10) {
+  const normalized = (query || "").trim().toLowerCase();
+  if (!normalized) return [];
+
+  return items
+    .map((item) => ({
+      item,
+      score: fuzzyScore(item.name || "", normalized),
+    }))
+    .filter((entry) => entry.score >= 0)
+    .sort(
+      (a, b) =>
+        b.score - a.score || (a.item.name || "").localeCompare(b.item.name || "")
+    )
+    .slice(0, maxResults)
+    .map((entry) => entry.item);
+}
+
+function renderItemSearchResults(matches) {
+  itemSearchResults.innerHTML = "";
+
+  if (!matches.length) {
+    const li = document.createElement("li");
+    li.textContent = "No matches found.";
+    itemSearchResults.appendChild(li);
+    return;
+  }
+
+  matches.forEach((item) => {
+    const li = document.createElement("li");
+    li.classList.add("search-result");
+
+    const name = document.createElement("div");
+    name.textContent = item.name;
+
+    const meta = document.createElement("div");
+    meta.classList.add("search-result-meta");
+    meta.textContent = [item.rarity, item.type].filter(Boolean).join(" • ");
+
+    li.appendChild(name);
+    li.appendChild(meta);
+
+    li.addEventListener("click", () => handleCanonicalItemSelected(item));
+
+    itemSearchResults.appendChild(li);
+  });
+}
+
+async function handleCanonicalItemSelected(item) {
+  if (!currentListId || !currentUser) return;
+  try {
+    const res = await addItemToList(currentListId, currentUser.uid, item.id);
+    if (res.success) {
+      itemSearchInput.value = "";
+      itemSearchResults.innerHTML = "";
+      addItemInline.hidden = true;
+    } else if (res.reason === "duplicate") {
+      alert("Item already in this list.");
+    } else {
+      alert("Could not add item. Check console for details.");
+    }
+  } catch (err) {
+    console.error("Error adding item:", err);
+    alert("Could not add item. Check console for details.");
+  }
+}
+
+function setupItemSearchTypeahead() {
+  if (!itemSearchInput || !itemSearchResults) return;
+
+  itemSearchInput.addEventListener("input", () => {
+    if (!currentListId) return;
+    if (searchDebounce) clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(handleItemSearchInput, 120);
+  });
+}
+
+function showSearchLoadingState(message) {
+  itemSearchResults.innerHTML = "";
+  const li = document.createElement("li");
+  li.textContent = message;
+  itemSearchResults.appendChild(li);
+}
+
+function handleItemSearchInput() {
+  const query = itemSearchInput.value.trim();
+  if (!query) {
+    itemSearchResults.innerHTML = "";
+    return;
+  }
+
+  if (!canonicalItemsLoaded) {
+    showSearchLoadingState("Loading canonical items...");
+    ensureCanonicalItemsLoaded()
+      .then(() => handleItemSearchInput())
+      .catch(() => {
+        showSearchLoadingState("Error loading canonical items.");
+      });
+    return;
+  }
+
+  const matches = getFuzzyMatches(query, allCanonicalItems, 10);
+  renderItemSearchResults(matches);
+}
+
 /* Data loading */
 
 async function loadForUser(user) {
@@ -416,6 +584,10 @@ async function loadForUser(user) {
   } catch (err) {
     console.error("Error loading metaStatus:", err);
   }
+
+  ensureCanonicalItemsLoaded().catch(() => {
+    // handled in search UI when needed
+  });
 
   unsubscribeLists = watchUserLists(user.uid, (lists) => {
     currentLists = lists;
@@ -443,8 +615,8 @@ async function loadList(listId) {
   if (!currentUser || !listId) return;
   currentListId = listId;
   addItemInline.hidden = true;
-  addItemSearchInput.value = "";
-  addItemSearchResults.innerHTML = "";
+  if (itemSearchInput) itemSearchInput.value = "";
+  if (itemSearchResults) itemSearchResults.innerHTML = "";
   subscribeToList(listId);
   document.querySelectorAll(".list-item").forEach((btn) => {
     btn.classList.toggle("is-active", btn.dataset.listId === listId);
@@ -483,8 +655,8 @@ function showSignedOutUI() {
   activeListTbody.innerHTML = "";
   statusSummary.textContent = "";
   addItemInline.hidden = true;
-  addItemSearchInput.value = "";
-  addItemSearchResults.innerHTML = "";
+  if (itemSearchInput) itemSearchInput.value = "";
+  if (itemSearchResults) itemSearchResults.innerHTML = "";
 
   intelEmptyState.hidden = false;
   itemDetailSection.hidden = true;
@@ -553,78 +725,13 @@ addItemButton?.addEventListener("click", () => {
   const isHidden = addItemInline.hidden;
   addItemInline.hidden = !isHidden;
   if (!addItemInline.hidden) {
-    addItemSearchInput.focus();
-    runSearch(addItemSearchInput.value || "");
+    ensureCanonicalItemsLoaded().catch(() => {});
+    itemSearchInput.focus();
+    handleItemSearchInput();
   }
 });
 
-addItemSearchInput?.addEventListener("input", (e) => {
-  if (!currentListId) return;
-  if (searchDebounce) clearTimeout(searchDebounce);
-  const value = e.target.value || "";
-  searchDebounce = setTimeout(() => runSearch(value), 200);
-});
-
-async function runSearch(term) {
-  addItemSearchResults.innerHTML = "";
-  if (!term) {
-    const p = document.createElement("p");
-    p.textContent = "Start typing to search canonical items.";
-    addItemSearchResults.appendChild(p);
-    return;
-  }
-  try {
-    const results = await searchItemsByNamePrefix(term, 10);
-    if (!results.length) {
-      const p = document.createElement("p");
-      p.textContent = "No matches found.";
-      addItemSearchResults.appendChild(p);
-      return;
-    }
-    results.forEach((item) => {
-      const row = document.createElement("div");
-      row.classList.add("search-result");
-
-      const info = document.createElement("div");
-      info.classList.add("search-result-info");
-      const name = document.createElement("div");
-      name.textContent = item.name;
-      const meta = document.createElement("div");
-      meta.classList.add("search-result-meta");
-      meta.textContent = [item.rarity, item.type].filter(Boolean).join(" • ");
-      info.appendChild(name);
-      info.appendChild(meta);
-
-      const addBtn = document.createElement("button");
-      addBtn.type = "button";
-      addBtn.textContent = "Add";
-      addBtn.addEventListener("click", async () => {
-        const res = await addItemToList(
-          currentListId,
-          currentUser.uid,
-          item.id
-        );
-        if (res.success) {
-          addItemSearchInput.value = "";
-          addItemInline.hidden = true;
-        } else if (res.reason === "duplicate") {
-          alert("Item already in this list.");
-        } else {
-          alert("Could not add item. Check console for details.");
-        }
-      });
-
-      row.appendChild(info);
-      row.appendChild(addBtn);
-      addItemSearchResults.appendChild(row);
-    });
-  } catch (err) {
-    console.error("Search error:", err);
-    const p = document.createElement("p");
-    p.textContent = "Error searching items.";
-    addItemSearchResults.appendChild(p);
-  }
-}
+setupItemSearchTypeahead();
 
 /* Auth state watcher */
 
