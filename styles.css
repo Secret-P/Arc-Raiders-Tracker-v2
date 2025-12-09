@@ -247,6 +247,12 @@ button:active {
   overflow-y: auto;
 }
 
+.list-row-entry {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
 .list-item {
   display: flex;
   flex-direction: column;
@@ -271,6 +277,13 @@ button:active {
   border-left-color: var(--crt-accent-strong);
   background: #050a11;
   box-shadow: var(--crt-glow-soft);
+}
+
+.list-delete-btn {
+  background: transparent;
+  color: var(--crt-text-dim);
+  border: 1px solid var(--crt-border);
+  padding: 4px 6px;
 }
 
 /* ACTIVE LIST PANEL */
@@ -306,6 +319,39 @@ button:active {
   overflow: auto;
   border-top: 1px solid var(--crt-border);
   margin-top: var(--space-2);
+}
+
+#add-item-inline {
+  background: #060910;
+  border: 1px dashed var(--crt-border);
+  padding: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+#add-item-search-results {
+  margin-top: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.search-result {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-1);
+  border: 1px solid var(--crt-border);
+  background: #0a1018;
+}
+
+.search-result-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.search-result-meta {
+  color: var(--crt-text-dim);
+  font-size: 0.75rem;
 }
 
 /* TABLE */
@@ -357,6 +403,10 @@ button:active {
   gap: 4px;
 }
 
+.col-actions {
+  text-align: center;
+}
+
 .col-owned .owned-value {
   min-width: 1.5em;
   text-align: center;
@@ -366,6 +416,11 @@ button:active {
 .col-status {
   font-family: var(--font-mono);
   letter-spacing: 0.1em;
+}
+
+.item-meta {
+  color: var(--crt-text-dim);
+  font-size: 0.7rem;
 }
 
 /* INTEL PANEL */

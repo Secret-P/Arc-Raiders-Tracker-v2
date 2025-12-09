@@ -64,10 +64,8 @@
 
           <div id="active-list-actions">
             <button id="add-item-button" type="button">+ ADD ITEM</button>
-            <button id="add-from-quest-button" type="button">
-              + ADD FROM QUEST
-            </button>
-            <button id="archive-list-button" type="button">ARCHIVE LIST</button>
+            <button id="rename-list-button" type="button">RENAME</button>
+            <button id="delete-list-button" type="button">DELETE LIST</button>
           </div>
         </header>
 
@@ -103,11 +101,10 @@
           <table id="active-list-table">
             <thead>
               <tr>
-                <th class="col-qty">QTY</th>
-                <th class="col-item-name">ITEM NAME</th>
-                <th class="col-owned">OWNED</th>
-                <th class="col-source">SRC</th>
-                <th class="col-status">STATUS</th>
+                <th class="col-item-name">ITEM</th>
+                <th class="col-qty">QTY NEEDED</th>
+                <th class="col-owned">ON HAND</th>
+                <th class="col-actions">ACTIONS</th>
               </tr>
             </thead>
             <tbody id="active-list-tbody">
