@@ -126,25 +126,6 @@ body::before {
   color: var(--crt-accent-strong);
 }
 
-#top-bar-center {
-  display: flex;
-  gap: var(--space-1);
-  align-items: center;
-  color: var(--crt-text-dim);
-}
-
-#sync-status-value[data-sync-status="ok"] {
-  color: var(--status-ok);
-}
-
-#sync-status-value[data-sync-status="stale"] {
-  color: var(--status-stale);
-}
-
-#sync-status-value[data-sync-status="error"] {
-  color: var(--status-error);
-}
-
 #top-bar-user {
   display: flex;
   align-items: center;
@@ -155,7 +136,7 @@ body::before {
 #main-layout {
   flex: 1;
   display: grid;
-  grid-template-columns: 260px minmax(0, 1.8fr) minmax(0, 1.2fr);
+  grid-template-columns: 140px minmax(0, 1.8fr) minmax(0, 1.2fr);
   gap: var(--space-3);
   padding: var(--space-3);
   position: relative;
@@ -163,7 +144,7 @@ body::before {
 }
 
 body.intel-collapsed #main-layout {
-  grid-template-columns: 260px minmax(0, 1fr) auto;
+  grid-template-columns: 140px minmax(0, 1fr) auto;
 }
 
 /* STATUS BAR */
@@ -264,6 +245,7 @@ button:active {
   display: flex;
   align-items: center;
   gap: var(--space-1);
+  width: 100%;
 }
 
 .list-item {
@@ -274,10 +256,15 @@ button:active {
   padding: 6px 8px;
   border-left: 2px solid transparent;
   background: transparent;
+  width: 100%;
 }
 
 .list-item .list-title {
   color: var(--crt-text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
 }
 
 .list-item .list-meta {
@@ -290,13 +277,6 @@ button:active {
   border-left-color: var(--crt-accent-strong);
   background: #050a11;
   box-shadow: var(--crt-glow-soft);
-}
-
-.list-delete-btn {
-  background: transparent;
-  color: var(--crt-text-dim);
-  border: 1px solid var(--crt-border);
-  padding: 4px 6px;
 }
 
 /* ACTIVE LIST PANEL */
@@ -370,7 +350,8 @@ button:active {
 /* TABLE */
 #active-list-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0 2px;
   font-size: 0.8rem;
 }
 

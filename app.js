@@ -22,7 +22,7 @@ const signOutButton = document.getElementById("sign-out-button");
 const userInfo = document.getElementById("user-info");
 const userNameEl = document.getElementById("user-name");
 
-const syncStatusValue = document.getElementById("sync-status-value");
+const footerSyncText = document.getElementById("footer-sync-text");
 
 const listsContainer = document.getElementById("lists-container");
 const newListButton = document.getElementById("new-list-button");
@@ -91,22 +91,23 @@ signOutButton?.addEventListener("click", async () => {
 /* Rendering helpers */
 
 function setSyncStatus(metaStatus) {
+  if (!footerSyncText) return;
+
+  const baseText = "POWERED BY METAFORGE";
+
   if (!metaStatus) {
-    syncStatusValue.textContent = "--";
-    syncStatusValue.dataset.syncStatus = "unknown";
+    footerSyncText.textContent = `${baseText} - LAST UPDATED --`;
     return;
   }
 
   const ts = metaStatus.lastFullSync || metaStatus.lastItemsSync;
   if (!ts) {
-    syncStatusValue.textContent = "NEVER";
-    syncStatusValue.dataset.syncStatus = "stale";
+    footerSyncText.textContent = `${baseText} - LAST UPDATED NEVER`;
     return;
   }
 
   const date = ts.toDate();
-  syncStatusValue.textContent = date.toLocaleString();
-  syncStatusValue.dataset.syncStatus = "ok"; // later: compute freshness
+  footerSyncText.textContent = `${baseText} - LAST UPDATED ${date.toLocaleString()}`;
 }
 
 function renderLists(lists) {
@@ -142,18 +143,7 @@ function renderLists(lists) {
       loadList(list.id);
     });
 
-    const deleteBtn = document.createElement("button");
-    deleteBtn.type = "button";
-    deleteBtn.classList.add("list-delete-btn");
-    deleteBtn.textContent = "✕";
-    deleteBtn.title = "Delete list";
-    deleteBtn.addEventListener("click", async (e) => {
-      e.stopPropagation();
-      await handleDeleteList(list.id);
-    });
-
     wrapper.appendChild(btn);
-    wrapper.appendChild(deleteBtn);
     listsContainer.appendChild(wrapper);
   });
 }
@@ -648,8 +638,9 @@ function showSignedOutUI() {
   userInfo.hidden = true;
   userNameEl.textContent = "";
 
-  syncStatusValue.textContent = "--";
-  syncStatusValue.dataset.syncStatus = "unknown";
+  if (footerSyncText) {
+    footerSyncText.textContent = "POWERED BY METAFORGE - LAST UPDATED --";
+  }
 
   listsContainer.innerHTML = "";
   activeListTitle.textContent = "";
