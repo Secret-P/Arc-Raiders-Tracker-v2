@@ -316,7 +316,10 @@ function renderListItems(items) {
     const tdName = document.createElement("td");
     tdName.classList.add("col-item-name");
     const nameText = item.mfItem?.name || "(Unknown Item)";
-    tdName.textContent = nameText;
+    const nameLabel = document.createElement("span");
+    nameLabel.classList.add("item-name");
+    nameLabel.textContent = nameText;
+    tdName.appendChild(nameLabel);
     if (item.mfItem?.rarity || item.mfItem?.type) {
       const meta = document.createElement("div");
       meta.classList.add("item-meta");

@@ -400,12 +400,21 @@ button:active {
 }
 
 #active-list-tbody tr.list-row.is-selected {
-  background: #050c17;
-  box-shadow: 0 0 0 1px var(--crt-accent-strong);
+  box-shadow: none;
 }
 
 #active-list-tbody tr.list-row.is-selected:hover {
-  box-shadow: 0 0 0 1px var(--crt-accent-strong);
+  box-shadow: none;
+}
+
+#active-list-tbody .item-name {
+  font-weight: 400;
+  color: var(--crt-text-main);
+}
+
+#active-list-tbody tr.list-row.is-selected .item-name {
+  font-weight: 700;
+  color: var(--crt-accent-strong);
 }
 
 /* Owned controls */
